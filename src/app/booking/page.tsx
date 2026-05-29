@@ -1,15 +1,15 @@
 "use client";
 
-import { Suspense, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import Navbar from "@/components/Navbar";
 import { flightSchedules } from "@/services/flightData";
 
-function BookingContent() {
+function BookingPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const flightNumber = searchParams.get("flight");
+  const flightNumber =
+    searchParams.get("flightNumber") || searchParams.get("flight");
 
   const selectedFlight = useMemo(() => {
     return flightSchedules.find(
@@ -22,14 +22,58 @@ function BookingContent() {
   const [email, setEmail] = useState("");
   const [passportNumber, setPassportNumber] = useState("");
   const [loading, setLoading] = useState(false);
+  const [confirmedCount, setConfirmedCount] = useState(0);
 
   const bookingReference = useMemo(() => {
     return `DF${Math.floor(100000 + Math.random() * 900000)}`;
   }, []);
 
-  const isFull = selectedFlight
-    ? selectedFlight.availableSeats <= 0
-    : false;
+  useEffect(() => {
+    async function loadBookings() {
+      if (!selectedFlight) return;
+
+      try {
+        const response = await fetch(
+          `/api/bookings?flightNumber=${selectedFlight.flightNumber}`
+        );
+        const data = await response.json();
+
+        if (data.success) {
+          setConfirmedCount(data.bookings.length);
+        }
+      } catch (error) {
+        console.error("Failed to load bookings", error);
+      }
+    }
+
+    loadBookings();
+  }, [selectedFlight]);
+
+  if (!selectedFlight) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-[#f4f8fc]">
+        <div className="rounded-3xl bg-white p-10 text-center shadow-xl">
+          <h1 className="text-3xl font-bold text-red-500">
+            Flight Not Found
+          </h1>
+
+          <p className="mt-4 text-slate-600">
+            Please return to the search page and select a scheduled flight.
+          </p>
+
+          <button
+            onClick={() => router.push("/search")}
+            className="mt-6 rounded-2xl bg-sky-600 px-8 py-4 font-bold text-white transition hover:bg-sky-500"
+          >
+            Back to Search
+          </button>
+        </div>
+      </main>
+    );
+  }
+
+  const currentAvailableSeats = selectedFlight.capacity - confirmedCount;
+  const isFull = currentAvailableSeats <= 0;
 
   async function handleBooking() {
     if (!selectedFlight) {
@@ -78,14 +122,14 @@ function BookingContent() {
 
       const data = await response.json();
 
-      if (!response.ok) {
+      if (!response.ok || !data.success) {
         alert(data.message || "Booking failed.");
         setLoading(false);
         return;
       }
 
       router.push(
-        `/invoice?bookingReference=${bookingReference}`
+        `/invoice?bookingReference=${bookingReference}&flightNumber=${selectedFlight.flightNumber}&firstName=${firstName}&lastName=${lastName}&email=${email}&passportNumber=${passportNumber}`
       );
     } catch (error) {
       console.error(error);
@@ -95,230 +139,232 @@ function BookingContent() {
     setLoading(false);
   }
 
-  if (!selectedFlight) {
-    return (
-      <>
-        <Navbar />
-
-        <main className="min-h-screen flex items-center justify-center bg-slate-100">
-          <div className="bg-white p-10 rounded-3xl shadow-xl text-center">
-            <h1 className="text-3xl font-bold text-red-500 mb-4">
-              Flight Not Found
-            </h1>
-
-            <button
-              onClick={() => router.push("/search")}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-semibold transition"
-            >
-              Back to Search
-            </button>
-          </div>
-        </main>
-      </>
-    );
-  }
-
   return (
-    <>
-      <Navbar />
+    <main className="min-h-screen bg-[#f4f8fc] text-slate-950">
+      <section className="bg-gradient-to-r from-sky-700 via-cyan-600 to-blue-500 px-8 py-16 text-white">
+        <div className="mx-auto max-w-6xl">
+          <p className="text-sm font-bold uppercase tracking-[0.3em] text-amber-200">
+            Flight Booking
+          </p>
 
-      <main className="min-h-screen bg-slate-100 py-12 px-6">
-        <div className="max-w-5xl mx-auto">
-          <div className="bg-gradient-to-r from-cyan-700 to-blue-500 text-white rounded-3xl p-10 shadow-xl mb-8">
-            <p className="uppercase tracking-[0.3em] text-yellow-300 font-semibold mb-2">
-              Flight Booking
-            </p>
+          <h1 className="mt-4 text-5xl font-extrabold">
+            Complete your passenger booking.
+          </h1>
 
-            <h1 className="text-5xl font-black mb-4">
-              Confirm your booking.
-            </h1>
+          <p className="mt-5 max-w-2xl text-lg leading-8 text-sky-100">
+            Review your selected flight, enter passenger details and receive a
+            unique booking reference.
+          </p>
+        </div>
+      </section>
 
-            <p className="text-lg text-blue-100">
-              Complete passenger details and confirm your Dairy Flat Airline
-              reservation.
-            </p>
-          </div>
+      <section className="-mt-10 px-8 pb-16">
+        <div className="mx-auto max-w-6xl">
+          <div className="grid gap-8 lg:grid-cols-[0.9fr_1.1fr]">
+            <div className="rounded-3xl bg-white p-8 shadow-2xl">
+              <p className="text-sm font-bold uppercase tracking-wide text-sky-700">
+                Selected Flight
+              </p>
 
-          <div className="grid lg:grid-cols-2 gap-8">
-            <div className="bg-white rounded-3xl shadow-xl p-8">
-              <div className="flex items-center justify-between mb-6">
-                <div>
-                  <p className="text-blue-700 font-bold text-lg">
-                    {selectedFlight.flightNumber}
+              <h2 className="mt-3 text-4xl font-extrabold text-slate-900">
+                {selectedFlight.flightNumber}
+              </h2>
+
+              <p className="mt-2 text-2xl font-semibold text-slate-700">
+                {selectedFlight.origin} → {selectedFlight.destination}
+              </p>
+
+              <div className="mt-8 space-y-5">
+                <div className="rounded-2xl bg-slate-100 p-5">
+                  <p className="text-sm font-semibold text-slate-500">
+                    Departure
                   </p>
-
-                  <h2 className="text-4xl font-black text-slate-900">
-                    {selectedFlight.origin} →{" "}
-                    {selectedFlight.destination}
-                  </h2>
+                  <p className="mt-2 text-lg font-bold text-slate-900">
+                    {selectedFlight.departureDate}
+                  </p>
+                  <p className="text-slate-700">
+                    {selectedFlight.departureTime} ·{" "}
+                    {selectedFlight.departureTimezone}
+                  </p>
                 </div>
 
-                <div className="bg-yellow-100 text-yellow-700 px-5 py-3 rounded-2xl font-bold text-xl">
-                  ${selectedFlight.price} NZD
-                </div>
-              </div>
-
-              <div className="space-y-5">
-                <div className="bg-slate-100 rounded-2xl p-5">
-                  <p className="text-sm text-slate-500 mb-1">
-                    Aircraft
+                <div className="rounded-2xl bg-slate-100 p-5">
+                  <p className="text-sm font-semibold text-slate-500">
+                    Arrival
                   </p>
-
-                  <p className="font-bold text-slate-900 text-lg">
-                    {selectedFlight.aircraft}
+                  <p className="mt-2 text-lg font-bold text-slate-900">
+                    {selectedFlight.arrivalDate}
+                  </p>
+                  <p className="text-slate-700">
+                    {selectedFlight.arrivalTime} ·{" "}
+                    {selectedFlight.arrivalTimezone}
                   </p>
                 </div>
 
                 <div className="grid grid-cols-2 gap-5">
-                  <div className="bg-slate-100 rounded-2xl p-5">
-                    <p className="text-sm text-slate-500 mb-1">
-                      Departure
+                  <div className="rounded-2xl bg-slate-100 p-5">
+                    <p className="text-sm font-semibold text-slate-500">
+                      Aircraft
                     </p>
-
-                    <p className="font-bold text-slate-900">
-                      {selectedFlight.departureDate}
-                    </p>
-
-                    <p className="text-slate-700">
-                      {selectedFlight.departureTime}
+                    <p className="mt-2 font-bold text-slate-900">
+                      {selectedFlight.aircraft}
                     </p>
                   </div>
 
-                  <div className="bg-slate-100 rounded-2xl p-5">
-                    <p className="text-sm text-slate-500 mb-1">
-                      Arrival
+                  <div className="rounded-2xl bg-slate-100 p-5">
+                    <p className="text-sm font-semibold text-slate-500">
+                      Seats
                     </p>
-
-                    <p className="font-bold text-slate-900">
-                      {selectedFlight.arrivalDate}
-                    </p>
-
-                    <p className="text-slate-700">
-                      {selectedFlight.arrivalTime}
+                    <p
+                      className={
+                        isFull
+                          ? "mt-2 font-bold text-red-600"
+                          : "mt-2 font-bold text-slate-900"
+                      }
+                    >
+                      {isFull
+                        ? "Flight is full"
+                        : `${currentAvailableSeats} / ${selectedFlight.capacity}`}
                     </p>
                   </div>
                 </div>
 
-                <div className="bg-slate-100 rounded-2xl p-5">
-                  <p className="text-sm text-slate-500 mb-1">
-                    Booking Reference
+                <div className="rounded-2xl bg-sky-50 p-5">
+                  <p className="text-sm font-semibold text-sky-700">
+                    Total Fare
+                  </p>
+                  <p className="mt-2 text-3xl font-extrabold text-sky-800">
+                    ${selectedFlight.price} NZD
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-3xl bg-white p-8 shadow-2xl">
+              <div className="flex items-start justify-between gap-6">
+                <div>
+                  <p className="text-sm font-bold uppercase tracking-wide text-sky-700">
+                    Passenger Details
                   </p>
 
-                  <p className="font-black text-2xl text-blue-700">
+                  <h2 className="mt-3 text-3xl font-extrabold text-slate-900">
+                    Traveller information
+                  </h2>
+
+                  <p className="mt-2 text-slate-600">
+                    These details will be attached to the booking reference.
+                  </p>
+                </div>
+
+                <div className="rounded-2xl bg-amber-100 px-5 py-4 text-right">
+                  <p className="text-sm font-semibold text-amber-700">
+                    Reference
+                  </p>
+                  <p className="text-xl font-extrabold text-amber-800">
                     {bookingReference}
                   </p>
                 </div>
+              </div>
 
-                <div className="bg-slate-100 rounded-2xl p-5">
-                  <p className="text-sm text-slate-500 mb-1">
-                    Aircraft Capacity
-                  </p>
-
-                  <p className="font-bold text-xl text-green-600">
-                    {selectedFlight.capacity} seats
+              {isFull && (
+                <div className="mt-8 rounded-2xl bg-red-50 p-5 text-red-700">
+                  <p className="font-bold">This flight is fully booked.</p>
+                  <p className="mt-1 text-sm">
+                    Please return to the search page and choose another
+                    scheduled flight.
                   </p>
                 </div>
-              </div>
-            </div>
+              )}
 
-            <div className="bg-white rounded-3xl shadow-xl p-8">
-              <h2 className="text-3xl font-black text-slate-900 mb-8">
-                Passenger Details
-              </h2>
-
-              <div className="space-y-5">
+              <div className="mt-8 grid gap-6 md:grid-cols-2">
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-2">
+                  <label className="mb-2 block font-semibold text-slate-700">
                     First Name
                   </label>
-
                   <input
                     type="text"
                     value={firstName}
-                    onChange={(e) =>
-                      setFirstName(e.target.value)
-                    }
-                    className="w-full border border-slate-300 rounded-2xl px-5 py-4 outline-none focus:border-blue-500"
-                    placeholder="Enter first name"
+                    disabled={isFull || loading}
+                    onChange={(e) => setFirstName(e.target.value)}
+                    className="w-full rounded-xl border border-slate-300 bg-white p-3 text-slate-900 shadow-sm focus:border-sky-500 focus:outline-none disabled:bg-slate-100"
                   />
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-2">
+                  <label className="mb-2 block font-semibold text-slate-700">
                     Last Name
                   </label>
-
                   <input
                     type="text"
                     value={lastName}
-                    onChange={(e) =>
-                      setLastName(e.target.value)
-                    }
-                    className="w-full border border-slate-300 rounded-2xl px-5 py-4 outline-none focus:border-blue-500"
-                    placeholder="Enter last name"
+                    disabled={isFull || loading}
+                    onChange={(e) => setLastName(e.target.value)}
+                    className="w-full rounded-xl border border-slate-300 bg-white p-3 text-slate-900 shadow-sm focus:border-sky-500 focus:outline-none disabled:bg-slate-100"
                   />
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-2">
+                  <label className="mb-2 block font-semibold text-slate-700">
                     Email Address
                   </label>
-
                   <input
                     type="email"
                     value={email}
-                    onChange={(e) =>
-                      setEmail(e.target.value)
-                    }
-                    className="w-full border border-slate-300 rounded-2xl px-5 py-4 outline-none focus:border-blue-500"
-                    placeholder="Enter email address"
+                    disabled={isFull || loading}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full rounded-xl border border-slate-300 bg-white p-3 text-slate-900 shadow-sm focus:border-sky-500 focus:outline-none disabled:bg-slate-100"
                   />
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-2">
+                  <label className="mb-2 block font-semibold text-slate-700">
                     Passport Number
                   </label>
-
                   <input
                     type="text"
                     value={passportNumber}
-                    onChange={(e) =>
-                      setPassportNumber(e.target.value)
-                    }
-                    className="w-full border border-slate-300 rounded-2xl px-5 py-4 outline-none focus:border-blue-500"
-                    placeholder="Enter passport number"
+                    disabled={isFull || loading}
+                    onChange={(e) => setPassportNumber(e.target.value)}
+                    className="w-full rounded-xl border border-slate-300 bg-white p-3 text-slate-900 shadow-sm focus:border-sky-500 focus:outline-none disabled:bg-slate-100"
                   />
                 </div>
-
-                <button
-                  onClick={handleBooking}
-                  disabled={loading || isFull}
-                  className={`w-full mt-4 py-4 rounded-2xl font-bold text-lg transition ${
-                    isFull
-                      ? "bg-red-400 text-white cursor-not-allowed"
-                      : "bg-blue-600 hover:bg-blue-700 text-white"
-                  }`}
-                >
-                  {loading
-                    ? "Processing Booking..."
-                    : isFull
-                    ? "Flight Full"
-                    : "Confirm Booking"}
-                </button>
               </div>
+
+              <button
+                onClick={handleBooking}
+                disabled={loading || isFull}
+                className={
+                  isFull
+                    ? "mt-8 rounded-2xl bg-slate-400 px-10 py-4 text-lg font-bold text-white"
+                    : "mt-8 rounded-2xl bg-sky-600 px-10 py-4 text-lg font-bold text-white transition hover:bg-sky-500 disabled:bg-slate-400"
+                }
+              >
+                {loading
+                  ? "Processing Booking..."
+                  : isFull
+                  ? "Flight Full"
+                  : "Confirm Booking"}
+              </button>
             </div>
           </div>
         </div>
-      </main>
-    </>
+      </section>
+    </main>
   );
 }
 
 export default function BookingPage() {
   return (
-    <Suspense fallback={<div>Loading booking page...</div>}>
-      <BookingContent />
+    <Suspense
+      fallback={
+        <main className="flex min-h-screen items-center justify-center bg-[#f4f8fc] text-slate-900">
+          <div className="rounded-3xl bg-white p-10 text-2xl font-bold shadow-xl">
+            Loading booking page...
+          </div>
+        </main>
+      }
+    >
+      <BookingPageContent />
     </Suspense>
   );
 }
