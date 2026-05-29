@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 type StoredBooking = {
+  _id?: string;
   bookingReference: string;
   flightNumber: string;
   firstName: string;
@@ -25,26 +26,44 @@ export default function MyBookingsPage() {
   const [bookingReference, setBookingReference] = useState("");
   const [results, setResults] = useState<StoredBooking[]>([]);
   const [hasSearched, setHasSearched] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  function handleSearch() {
-    const bookings: StoredBooking[] = JSON.parse(
-      localStorage.getItem("bookings") || "[]"
-    );
+  async function handleSearch() {
+    if (!email.trim() && !bookingReference.trim()) {
+      alert("Please enter an email address or booking reference.");
+      return;
+    }
 
-    const matchedBookings = bookings.filter((booking) => {
-      const emailMatches =
-        email === "" || booking.email.toLowerCase() === email.toLowerCase();
-
-      const referenceMatches =
-        bookingReference === "" ||
-        booking.bookingReference.toLowerCase() ===
-          bookingReference.toLowerCase();
-
-      return emailMatches && referenceMatches;
-    });
-
-    setResults(matchedBookings);
+    setLoading(true);
     setHasSearched(true);
+    setResults([]);
+
+    try {
+      const params = new URLSearchParams();
+
+      if (email.trim()) {
+        params.append("email", email.trim());
+      }
+
+      if (bookingReference.trim()) {
+        params.append("bookingReference", bookingReference.trim());
+      }
+
+      const response = await fetch(`/api/bookings?${params.toString()}`);
+      const data = await response.json();
+
+      if (data.success) {
+        setResults(data.bookings);
+      } else {
+        setResults([]);
+      }
+    } catch (error) {
+      console.error(error);
+      setResults([]);
+      alert("Failed to fetch bookings from MongoDB.");
+    }
+
+    setLoading(false);
   }
 
   function clearSearch() {
@@ -52,6 +71,7 @@ export default function MyBookingsPage() {
     setBookingReference("");
     setResults([]);
     setHasSearched(false);
+    setLoading(false);
   }
 
   return (
@@ -67,8 +87,8 @@ export default function MyBookingsPage() {
           </h1>
 
           <p className="mt-5 max-w-2xl text-lg leading-8 text-sky-100">
-            Search by email address or booking reference to view your passenger
-            booking details.
+            Search by email address or booking reference to view your MongoDB
+            booking records.
           </p>
         </div>
       </section>
@@ -107,9 +127,10 @@ export default function MyBookingsPage() {
             <div className="mt-8 flex gap-4">
               <button
                 onClick={handleSearch}
-                className="rounded-2xl bg-sky-600 px-8 py-4 font-bold text-white transition hover:bg-sky-500"
+                disabled={loading}
+                className="rounded-2xl bg-sky-600 px-8 py-4 font-bold text-white transition hover:bg-sky-500 disabled:bg-slate-400"
               >
-                Find My Bookings
+                {loading ? "Searching..." : "Find My Bookings"}
               </button>
 
               <button
@@ -135,7 +156,7 @@ export default function MyBookingsPage() {
               </div>
             )}
 
-            {hasSearched && results.length === 0 && (
+            {hasSearched && !loading && results.length === 0 && (
               <div className="rounded-3xl bg-white p-10 text-center shadow-lg">
                 <h2 className="text-3xl font-bold text-slate-800">
                   No bookings found
@@ -149,7 +170,7 @@ export default function MyBookingsPage() {
 
             {results.map((booking) => (
               <div
-                key={booking.bookingReference}
+                key={booking._id || booking.bookingReference}
                 className="rounded-[2rem] border border-slate-200 bg-white p-10 shadow-2xl"
               >
                 <div className="mb-10 flex flex-col justify-between gap-8 md:flex-row">
@@ -186,9 +207,7 @@ export default function MyBookingsPage() {
 
                 <div className="grid gap-8 md:grid-cols-2">
                   <div className="rounded-3xl bg-slate-100 p-8">
-                    <p className="text-lg font-bold text-sky-700">
-                      Passenger
-                    </p>
+                    <p className="text-lg font-bold text-sky-700">Passenger</p>
 
                     <p className="mt-4 text-2xl font-extrabold text-slate-950">
                       {booking.firstName} {booking.lastName}
@@ -204,9 +223,7 @@ export default function MyBookingsPage() {
                   </div>
 
                   <div className="rounded-3xl bg-slate-100 p-8">
-                    <p className="text-lg font-bold text-sky-700">
-                      Flight
-                    </p>
+                    <p className="text-lg font-bold text-sky-700">Flight</p>
 
                     <p className="mt-4 text-2xl font-extrabold text-slate-950">
                       {booking.flightNumber}
@@ -218,9 +235,7 @@ export default function MyBookingsPage() {
                   </div>
 
                   <div className="rounded-3xl bg-slate-100 p-8">
-                    <p className="text-lg font-bold text-sky-700">
-                      Departure
-                    </p>
+                    <p className="text-lg font-bold text-sky-700">Departure</p>
 
                     <p className="mt-4 text-2xl font-extrabold text-slate-950">
                       {booking.departureDate}
@@ -232,9 +247,7 @@ export default function MyBookingsPage() {
                   </div>
 
                   <div className="rounded-3xl bg-slate-100 p-8">
-                    <p className="text-lg font-bold text-sky-700">
-                      Arrival
-                    </p>
+                    <p className="text-lg font-bold text-sky-700">Arrival</p>
 
                     <p className="mt-4 text-2xl font-extrabold text-slate-950">
                       {booking.arrivalDate}

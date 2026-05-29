@@ -1,9 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { flightSchedules } from "@/services/flightData";
-import { getConfirmedBookingCount } from "@/utils/bookingStorage";
 
 export default function SearchPage() {
   const [origin, setOrigin] = useState("");
@@ -11,6 +10,35 @@ export default function SearchPage() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [hasSearched, setHasSearched] = useState(false);
+  const [bookingCounts, setBookingCounts] = useState<Record<string, number>>(
+    {}
+  );
+
+  useEffect(() => {
+    async function loadBookingCounts() {
+      const counts: Record<string, number> = {};
+
+      for (const flight of flightSchedules) {
+        try {
+          const response = await fetch(
+            `/api/bookings?flightNumber=${flight.flightNumber}`
+          );
+
+          const data = await response.json();
+
+          counts[flight.flightNumber] = data.success
+            ? data.bookings.length
+            : 0;
+        } catch {
+          counts[flight.flightNumber] = 0;
+        }
+      }
+
+      setBookingCounts(counts);
+    }
+
+    loadBookingCounts();
+  }, []);
 
   const clearSearch = () => {
     setOrigin("");
@@ -141,13 +169,8 @@ export default function SearchPage() {
           {hasSearched ? (
             filteredFlights.length > 0 ? (
               filteredFlights.map((flight) => {
-                const confirmedCount = getConfirmedBookingCount(
-                  flight.flightNumber
-                );
-
-                const currentAvailableSeats =
-                  flight.availableSeats - confirmedCount;
-
+                const confirmedCount = bookingCounts[flight.flightNumber] || 0;
+                const currentAvailableSeats = flight.capacity - confirmedCount;
                 const isFull = currentAvailableSeats <= 0;
 
                 return (
